@@ -46,20 +46,19 @@ public class CacheImpl<K, V, M extends Comparable<M>> implements Cache<K, V> {
 
     @Override
     public void put(K key, V value) {
-        final boolean isNew = !objects.containsKey(key);
+        ValueAndMeasure<K, V, M> vm = objects.get(key);
+        final boolean isNew = vm == null;
         //check if needed remove some key
         if (objects.size() >= maxElements && isNew) {
             //remove first key
             objects.remove(objects.values().parallelStream().map(ValueAndMeasure::getMeasure).sorted(measureComparator).findFirst().orElseThrow(IllegalStateException::new).getKey());
         }
 
-        final ValueAndMeasure<K, V, M> vm;
         if (isNew) {
             vm = new ValueAndMeasure<K, V, M>(value, new Measure<>(key));
             objects.put(key, vm);
         }
         else {
-            vm = objects.get(key);
             vm.setValue(value);
         }
 
