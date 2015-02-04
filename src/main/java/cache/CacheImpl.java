@@ -40,20 +40,30 @@ public class CacheImpl<K, V, M extends Comparable<M>> implements Cache<K, V> {
             return null;
         }
 
-        applyAlgorithm(key);
+        applyAlgorithm(vm);
         return vm.getValue();
     }
 
     @Override
     public void put(K key, V value) {
+        final boolean isNew = !objects.containsKey(key);
         //check if needed remove some key
-        if (objects.size() >= maxElements && !objects.containsKey(key)) {
+        if (objects.size() >= maxElements && isNew) {
             //remove first key
             objects.remove(objects.values().parallelStream().map(ValueAndMeasure::getMeasure).sorted(measureComparator).findFirst().orElseThrow(IllegalStateException::new).getKey());
         }
 
-        objects.put(key, new ValueAndMeasure<K, V, M>(value, new Measure<>(key)));
-        applyAlgorithm(key);
+        final ValueAndMeasure<K, V, M> vm;
+        if (isNew) {
+            vm = new ValueAndMeasure<K, V, M>(value, new Measure<>(key));
+            objects.put(key, vm);
+        }
+        else {
+            vm = objects.get(key);
+            vm.setValue(value);
+        }
+
+        applyAlgorithm(vm);
     }
 
     @Override
@@ -71,11 +81,8 @@ public class CacheImpl<K, V, M extends Comparable<M>> implements Cache<K, V> {
         objects.clear();
     }
 
-    protected void applyAlgorithm(K key) {
-        objects.compute(key, (k, vm) -> {
-            vm.getMeasure().setMeter(algorithm.calcMeter(vm.getMeasure().getMeter()));
-            return vm;
-        });
+    protected void applyAlgorithm(ValueAndMeasure<K, V, M> vm) {
+        vm.getMeasure().setMeter(algorithm.calcMeter(vm.getMeasure().getMeter()));
     }
 
     protected Map<K, ValueAndMeasure<K, V, M>> createObjectsMap() {
